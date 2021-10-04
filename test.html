@@ -1,0 +1,406 @@
+<html lang="tr-TR"><head>
+	
+    <title>Player</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="viewport" content="width=device-width, user-scalable=no">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <link rel="stylesheet" href="player.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <script src="greensocks/TweenMax.js"></script>
+    <script src="greensocks/TweenLite.js"></script>
+    <script src="greensocks/TimelineMax.js"></script>
+    <script src="greensocks/TimelineLite.js"></script>
+    <script src="jquery.fullscreen-min.js"></script>
+    <script src="viewCanvas.js"></script>
+    <style>
+        
+        html, body, div, span, applet, object, iframe,
+        h1, h2, h3, h4, h5, h6, p, blockquote, pre,
+        a, abbr, acronym, address, big, cite, code,
+        del, dfn, em, img, ins, kbd, q, s, samp,
+        small, strike, strong, sub, sup, tt, var,
+        b, u, i, center,
+        dl, dt, dd, ol, ul, li,
+        fieldset, form, label, legend,
+        table, caption, tbody, tfoot, thead, tr, th, td,
+        article, aside, canvas, details, embed, 
+        figure, figcaption, footer, header, hgroup, 
+        menu, nav, output, ruby, section, summary,
+        time, mark, audio, video {
+            margin: 0;
+            padding: 0;
+            border: 0;
+            font-size: 100%;
+            font: inherit;
+            vertical-align: baseline;
+        }
+        /* HTML5 display-role reset for older browsers */
+        article, aside, details, figcaption, figure, 
+        footer, header, hgroup, menu, nav, section {
+            display: block;
+        }
+        body {
+            line-height: 1;
+        }
+        ol, ul {
+            list-style: none;
+        }
+        blockquote, q {
+            quotes: none;
+        }
+        blockquote:before, blockquote:after,
+        q:before, q:after {
+            content: '';
+            content: none;
+        }
+        table {
+            border-collapse: collapse;
+            border-spacing: 0;
+        }
+        
+    </style>
+</head>
+<body style="background-color:#cccccc">
+
+    <div id="player" data-sound="https://vektorelvideo.egitimicerik.com/uploads/assets/solution/cozum_36_02_10_2021_23_41_41.mp3" data-pdf="https://vektorelvideo.egitimicerik.com/uploads/assets/questions/19/5227182faf3e02b67d2c0afe654f21bc.pdf" data-swf="https://vektorelvideo.egitimicerik.com/uploads/assets/questions/19/5227182faf3e02b67d2c0afe654f21bc.swf" data-xaml="https://vektorelvideo.egitimicerik.com/uploads/assets/solution/cozum_36_02_10_2021_23_41_41.xaml" data-cry="10|20" style="margin: 136.539px 0px 0px; padding: 0px; background-color: rgb(0, 0, 0); width: 823px; height: 435.933px;"> 
+        <canvas id="canvas" style="margin: -10px 0px 0px; display: block; padding: 0px; background-repeat: no-repeat; background-color: rgb(255, 255, 255); background-size: 396.069px 241.085px; background-image: url(&quot;https://vektorelvideo.egitimicerik.com/soru_cozum/web_player/jpg2/2939789822c90ffab4aba6900ffb9af4.jpg&quot;); background-position: 30.8625px 30.8625px;" width="823" height="435.93281249999995"></canvas>
+        <audio id="sound" controls="" autoplay="" controlslist="nodownload" src="https://vektorelvideo.egitimicerik.com/uploads/assets/solution/cozum_36_02_10_2021_23_41_41.mp3" style="width: 1440px; height: 25px; margin: 0px auto; display: block; position: relative; top: -17px;"></audio>
+    </div>
+
+    <script type="text/javascript">
+        
+        var x = $(window).innerWidth();
+        var y = $(window).innerHeight();
+        $('#player').css('width',x);
+        $('#player').css('height',y);
+    
+        
+        $(window).resize(function () {
+            
+            var x = $(window).innerWidth();
+            var y = $(window).innerHeight();
+            
+            $("#player").width(x);
+            $("#player").height(y);
+            
+            //loadBG();
+            getNewPage();
+
+        });
+        
+        var _player 	= $("#player");
+        var _canvas 	= document.getElementById("canvas");
+        var _sound 		= document.getElementById("sound");
+        var _mainArray;
+        var _info;
+        var _selectedIndex;
+        
+        var _mp3 		= _player.attr('data-sound');
+        var _swf 		= _player.attr('data-swf');
+        var _swfArray	= _swf.split(',');
+        var _pdf 		= _player.attr('data-pdf');
+        var _pdfArray	= _pdf.split(',');
+        var _xaml 		= _player.attr('data-xaml');
+        var _cryptKey	= _player.attr('data-cry');
+        
+        var api_pdf2jpg		= 'pdf2jpg.php?action=pdf2jpg&url=';
+        var api_xaml2text	= 'xaml2text.php?action=get-xml&url='+_xaml;
+        var api_get_size	= 'get-size.php?action=get-size&url=';
+        
+        //sorunun boyunu öğrenme
+        var _questionW;
+        var _questionH;
+
+        
+        //çözümün xaml getirme 
+        $.ajax({
+            type: "GET",
+            url: api_xaml2text,
+            dataType: "text",
+            success: parseXML
+        });
+
+        var _tween;
+        var _durum = false;
+        var _seekStatus = false;
+
+        function parseXML(_xmlString){
+        
+            if(_xmlString == 'false'){
+                alert('XML hatası');
+                return;
+            }
+        
+            _xmlString = base64ToString(_xmlString, _cryptKey);
+            var _xml = jQuery.parseXML(_xmlString.split(",").join("."));
+        
+            _info = $(_xml).find('info').text().split("|");
+            var _tempArray;
+        
+            _mainArray=[];
+        
+            $(_xml).find('obj').each(function(){
+                var _obj={
+                    startTime:parseFloat($(this).attr("t1")) / 1000,
+                    duration : parseFloat($(this).attr("t2") / 1000),
+                    type : $(this).attr("act"),
+                    id : $(this).attr("name"),
+                    //color : $(this).attr("color"),
+                    color : "#"+decimalToHexString(parseInt($(this).attr('color'))), 
+                    highlight : $(this).attr("hl"),
+                    size : parseFloat($(this).attr("thc")),
+                    status : false
+                };
+                if(_obj.type == "line" || _obj.type == "eraser" || _obj.type == "arrow" || _obj.type == "triangle" || _obj.type == "rectangle"){					
+                    _obj.points=[];
+                    $(this).find("po").each(function(){
+                        _tempArray=$(this).text().split("|");						
+                        _obj.points.push({ x:parseFloat(_tempArray[0]), y:parseFloat(_tempArray[1]) });						
+                    });
+                    
+                }else if(_obj.type == "circle"){
+                    _tempArray=$(this).find("rect").text().split("|");				
+                    _obj.rectangle = {x:parseFloat(_tempArray[0]),y:parseFloat(_tempArray[1]),width:parseFloat(_tempArray[2]),height:parseFloat(_tempArray[3])};
+                }else if(_obj.type == "delete" || _obj.type == "add" || _obj.type == "scale" || _obj.type == "swf"){
+                    _obj.objectID = $(this).find("id").text();
+                }				
+                _mainArray.push(_obj);
+                
+            });
+            _mainArray.sort(function(a,b){return a.startTime-b.startTime});
+            _selectedIndex = _info[5] == null ? 0:_info[5];
+            _infoScale		= _info[2];
+            getNewPage();
+            playSound();
+        }
+
+        function playSound(){
+            /*var _soundH = $("audio#sound")[0].clientHeight;
+            _soundH = -1*_soundH;*/
+            $("#sound").css({"width":$('#player').width()+"px","height":"25px","margin":"0px auto","display":"block","position":"relative","top":"-17px"});
+            $("#sound").attr("src",_mp3);
+            
+            
+            $(_sound).on('playing', function(event){
+                if (_seekStatus) {
+                    _sound.pause();
+                    return;
+                }
+                _tween = new TweenLite(_sound, _sound.duration, {onUpdate:sound_playProgress});
+                playTween();
+            }).on('pause', function(event){
+                if (_seekStatus) return;
+                _tween.pause();
+                _tween.onUpdate = null;
+                _sound.pause();
+                pauseTween();
+            }).on('seeked',function(event){
+                _seekStatus=true;
+                stopAll();
+                clearAllShapes();
+                
+                var _time = _sound.currentTime;
+                
+                $.each( _mainArray, function( _key, _object ) {
+                
+                    if(_object.startTime <= _time && _time <= _object.startTime + _object.duration)
+                    {				
+                        _time = _object.startTime-0.001;
+                        return false;
+                    }
+                });			
+                
+                $.each( _mainArray, function( _key, _object ) {			
+                    if(_object.startTime < _time)
+                    {
+                    
+                        _object.status=true;
+                    
+                        if(_object.type == "add")
+                        {
+                            var _tempObject = getObjectForAdd(_object.objectID);
+                            _tempObject.status = true;
+                            canvas_addNewProcess(_object,true,_tempObject,false);
+                        }
+                        else
+                        {
+                            canvas_addNewProcess(_object,true,false);
+                        }			
+                    }
+                    else
+                    {
+                        _object.status=false;
+                    }
+                });
+                
+                
+                _seekStatus=false;
+                
+            });
+            
+        };
+    
+
+        $(window).blur(stopAll);
+    
+        function stopAll(){
+            if(_tween != null){
+                _tween.onUpdate = null;
+                _tween.pause();
+            }
+            _sound.pause();
+            pauseTween();
+        }
+
+        function sound_playProgress(){
+            for(var _key in _mainArray)
+            {
+                if(!_mainArray[_key].status && _mainArray[_key].startTime <= _sound.currentTime)
+                {
+                    _mainArray[_key].status = true;
+                    if(_mainArray[_key].type == "add")
+                    {
+                        var _object = getObjectForAdd(_mainArray[_key].objectID);
+                        _object.status = true;
+                        canvas_addNewProcess(_mainArray[_key], true, _object);
+                        
+                        //console.log(1, _mainArray[_key].points.length,_mainArray[_key].duration);
+                    }
+                    else{
+                        canvas_addNewProcess(_mainArray[_key], _mainArray[_key].duration == 0?true:false);
+                        
+                        //console.log(2, _mainArray[_key].points, _mainArray[_key].duration);
+                    }			
+                }
+            }	
+        }
+    
+    
+        function getObjectForAdd(_id){
+            
+            var _object;
+            for(var _key in _mainArray)
+            {
+                if(_id == _mainArray[_key].id)
+                {
+                    _object = _mainArray[_key];
+                    break;
+                }
+            }
+            return _object;
+        }
+    
+    
+        function decimalToHexString(number){
+            var sayi = 6 - number.toString(16).toUpperCase().length;
+            var sifir="";
+            var i;
+            if(sayi == 0){
+                return number.toString(16).toUpperCase(); 
+            }
+            for(i=0; i<sayi; i++){
+                sifir +='0';
+            }
+            return (sifir+number.toString(16)).toUpperCase();
+    
+        }
+    
+    
+        function base64ToString(_xmlString, _keyString){
+            
+            var _strings = _xmlString.split("");		
+            var _keys = _keyString.split("|");
+            _strings.splice(_keys[0],1);
+            _strings.splice(_keys[1],1);			
+            return decode64(_strings.join(""));
+        }
+    
+
+        var keyStr = "ABCDEFGHIJKLMNOP" +
+                "QRSTUVWXYZabcdef" +
+                "ghijklmnopqrstuv" +
+                "wxyz0123456789+/" +
+                "=";
+
+        function encode64(input){
+            input = escape(input);
+            var output = "";
+            var chr1, chr2, chr3 = "";
+            var enc1, enc2, enc3, enc4 = "";
+            var i = 0;
+        
+            do {
+                chr1 = input.charCodeAt(i++);
+                chr2 = input.charCodeAt(i++);
+                chr3 = input.charCodeAt(i++);
+        
+                enc1 = chr1 >> 2;
+                enc2 = ((chr1 & 3) << 4) | (chr2 >> 4);
+                enc3 = ((chr2 & 15) << 2) | (chr3 >> 6);
+                enc4 = chr3 & 63;
+        
+                if (isNaN(chr2)) {
+                enc3 = enc4 = 64;
+                } else if (isNaN(chr3)) {
+                enc4 = 64;
+                }
+        
+                output = output +
+                keyStr.charAt(enc1) +
+                keyStr.charAt(enc2) +
+                keyStr.charAt(enc3) +
+                keyStr.charAt(enc4);
+                chr1 = chr2 = chr3 = "";
+                enc1 = enc2 = enc3 = enc4 = "";
+            } while (i < input.length);
+        
+            return output;
+        }
+
+        function decode64(input) {
+            var output = "";
+            var chr1, chr2, chr3 = "";
+            var enc1, enc2, enc3, enc4 = "";
+            var i = 0;
+        
+            // remove all characters that are not A-Z, a-z, 0-9, +, /, or =
+            var base64test = /[^A-Za-z0-9\+\/\=]/g;
+            if (base64test.exec(input)) {
+                alert("There were invalid base64 characters in the input text.\n" +
+                    "Valid base64 characters are A-Z, a-z, 0-9, '+', '/',and '='\n" +
+                    "Expect errors in decoding.");
+            }
+            input = input.replace(/[^A-Za-z0-9\+\/\=]/g, "");
+        
+            do {
+                enc1 = keyStr.indexOf(input.charAt(i++));
+                enc2 = keyStr.indexOf(input.charAt(i++));
+                enc3 = keyStr.indexOf(input.charAt(i++));
+                enc4 = keyStr.indexOf(input.charAt(i++));
+        
+                chr1 = (enc1 << 2) | (enc2 >> 4);
+                chr2 = ((enc2 & 15) << 4) | (enc3 >> 2);
+                chr3 = ((enc3 & 3) << 6) | enc4;
+        
+                output = output + String.fromCharCode(chr1);
+        
+                if (enc3 != 64) {
+                output = output + String.fromCharCode(chr2);
+                }
+                if (enc4 != 64) {
+                output = output + String.fromCharCode(chr3);
+                }
+        
+                chr1 = chr2 = chr3 = "";
+                enc1 = enc2 = enc3 = enc4 = "";
+        
+            } while (i < input.length);
+        
+            return unescape(output);
+        }
+    </script>
+    
+
+</body></html>
